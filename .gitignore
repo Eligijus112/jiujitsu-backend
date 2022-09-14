@@ -1,0 +1,9 @@
+# All the node dependencies
+node_modules/
+
+# Env variables
+nodemon.json
+.env
+
+# Vs code dir 
+.vscode/
