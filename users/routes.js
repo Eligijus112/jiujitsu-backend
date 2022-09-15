@@ -13,5 +13,11 @@ router.post('/users/create', userController.createUser);
 // User deletion 
 router.delete('/users/delete/:id', userController.deleteUser);
 
+// Activity toggling 
+router.put('/users/toggle_activity/:id', userController.toggleActivityUser);
+
+// User login
+router.post('/users/login', userController.loginUser);
+
 // Exporting the router
 module.exports = router;
