@@ -91,13 +91,21 @@ const createUser = (req, res, next) => {
 
 // Method to delete a user from database
 const deleteUser = (req, res, next) => {
-    // Defining a new delete statement for the users table
-    const delete_query = `
-        DELETE FROM users WHERE id = $1
-    `;
-
     // Extracting the user id from the request
     const user_id = req.params.id;
+
+    // Ensuring that the deleter is an admin
+    if (!(req.user_id === user_id || req.is_admin)) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Defining a new delete statement for the users table
+    const delete_query_user = `
+        DELETE FROM users WHERE id = $1
+    `;
+    const delete_query_ranks = `
+        DELETE FROM ranks WHERE user_id = $1
+    `
 
     // Deleting the user from the database
     db.query(delete_query, [user_id], (err, result) => {
@@ -249,19 +257,24 @@ const authUser = (req, res, next) => {
             // If there is an error, return it
             if (err) {
                 return res.status(403).send({
-                        message: "Auth failed",
+                        message: "Authentication failed. Please login again",
                         status_code: 403
                     })
             } else {
                 // Checking if the path is not /authenticate
                 if (req.path !== "/users/authenticate") {
+                    // Adding decoded info to the request
+                    req.user_id = decoded.user_id;
+                    req.is_admin = decoded.is_admin;
+                    req.is_active = decoded.is_active;
                     return next();
                 } else {
                 // If there is no error, return the result
                 return res.status(200).send({
-                        message: "Auth successful",
+                        message: "Authentification successful",
                         status_code: 200,
                         user_id: decoded.user_id,
+                        is_admin: decoded.is_admin,
                     })
                 }
             }
@@ -269,13 +282,27 @@ const authUser = (req, res, next) => {
     }
 };
 
+
 const getUsers = (req, res, next) => {
-    // Authenticating; If authentication fails, return an error
-    // If authentication is successful, return the user info
-    //authUser(req, res, next)
+    // Defining the dictionary for belt color ranks
+    const belt_color_ranks = {
+        'white': 0,
+        'blue': 1,
+        'purple': 2,
+        'brown': 3,
+        'black': 4
+    }
+
     // Defining a new select statement for the users table
     const get_users_query = `
-        SELECT * FROM users
+        SELECT 
+            users.*, user_ranks.rank_name, user_ranks.stripe_count 
+        FROM 
+            users
+        LEFT JOIN 
+            user_ranks 
+        ON 
+            users.id = user_ranks.user_id
     `;
     // Getting all users from the database
     db.query(get_users_query, (err, result) => {
@@ -286,6 +313,23 @@ const getUsers = (req, res, next) => {
                 error: err
             });
         } else {
+            // Sorting the users by belt color AND stripe count
+            result.rows
+            .sort((a, b) => {
+                if (belt_color_ranks[a.rank_name] < belt_color_ranks[b.rank_name]) {
+                    return 1;
+                } else if (belt_color_ranks[a.rank_name] > belt_color_ranks[b.rank_name]) {
+                    return -1;
+                } else {
+                    if (a.stripe_count < b.stripe_count) {
+                        return 1;
+                    } else if (a.stripe_count > b.stripe_count) {
+                        return -1;
+                    } else {
+                        return 0;
+                    }
+                }
+            })
             // If there is no error, return the result
             return res.status(200).send({
                 message: "Users retrieved successfully",
@@ -295,6 +339,57 @@ const getUsers = (req, res, next) => {
     });    
 };
 
+// Getting the user 
+const getUser = (req, res, next) => {
+    // Extracting the user_id from the params 
+    const user_id = req.params.id;
+
+    // Checking if the user_id is the same as in the token 
+    if (!(req.user_id === user_id || req.is_admin)) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Defining a new select statement for the users table
+    const get_user_query = `
+        SELECT
+            users.*, user_ranks.rank_name, user_ranks.stripe_count
+        FROM
+            users
+        LEFT JOIN
+            user_ranks
+        ON
+            users.id = user_ranks.user_id
+        WHERE
+            users.id = $1
+    `;
+
+    // Getting the user from the database
+    db.query(get_user_query, [user_id], (err, result) => {
+        // If there is an error, return it
+        if (err) {
+            return res.status(500).send({
+                message: "Error in getting user",
+                error: err
+            });
+        } else {
+            // If there is no error, return the result
+            if (result.rows.length > 0){
+                return res.status(200).send({
+                    message: "User retrieved successfully",
+                    user_info: {
+                        id: result.rows[0].id,
+                        first_name: result.rows[0].first_name,
+                        last_name: result.rows[0].last_name,
+                        email: result.rows[0].email,
+                        rank_name: result.rows[0].rank_name,
+                        stripe_count: result.rows[0].stripe_count,
+                    }
+            })
+        }
+        }
+    })
+}
+
 // Exporting the user controller
 module.exports = {
   createUser,
@@ -302,5 +397,6 @@ module.exports = {
   toggleActivityUser,
   loginUser,
   authUser, 
-  getUsers
+  getUsers,
+  getUser
 };

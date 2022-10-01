@@ -7,6 +7,9 @@ const bodyParser = require('body-parser');
 // Importing the routes from the users module
 const usersRoutes = require('./users/routes');
 
+// Importing the ranks routes
+const ranksRoutes = require('./ranks/routes');
+
 // Loading the .env constants
 require('dotenv').config({path: './.env'});
 
@@ -33,6 +36,7 @@ app.use((req, res, next) => {
 
 // Setting up the routes
 app.use('/api', usersRoutes);
+app.use('/api', ranksRoutes);
 
 // Exporting the app
 module.exports = app;

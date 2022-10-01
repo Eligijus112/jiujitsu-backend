@@ -20,54 +20,20 @@ The command to initialize the project is `npm init`. This will create a `package
 
 To install all the necessary dependencies, run the command `npm install`.
 
-# Database schema
-
-The database used in this project is postgresql. The schema is as follows:
-
-![Database schema](docs/db-schema.png)
-
 # API endpoints
 
-## Users 
+All the endpoints are defined in `controllers.js` files. 
 
----
-```
-POST /api/users/create 
-```
-Creates a new user. 
+All the routes are defined in `routes.js` files.
 
----
+The api endpoints are:
 
-```
-GET /api/users/:id
-```
+`<host>:<port>/api/users`
 
-Gets a specific user by id. 
+`<host>:<port>/api/ranks`
 
----
-```
-GET /api/users
-```
+The current business modules are: 
 
-Gets all users. 
+`users`
 
----
-```
-DELETE /api/users/:id
-```
-
-Deletes a specific user by id. 
-
----
-```
-PUT /api/users/:id
-```
-
-Updates a specific user by id. The request body should contain the fields to be updated. For example, 
-
-```
-{
-    "is_active": true, 
-    "is_admin": false
-}
-```
+`ranks`

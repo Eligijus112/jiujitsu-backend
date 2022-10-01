@@ -11,7 +11,7 @@ const userController = require('./controllers');
 router.post('/users/create', userController.createUser);
 
 // User deletion 
-router.delete('/users/delete/:id', userController.deleteUser);
+router.delete('/users/delete/:id', userController.authUser, userController.deleteUser);
 
 // Activity toggling 
 router.put('/users/toggle_activity/:id', userController.toggleActivityUser);
@@ -24,6 +24,9 @@ router.get('/users/authenticate', userController.authUser);
 
 // Getting all the users
 router.get('/users', userController.authUser, userController.getUsers);
+
+// Getting one user info 
+router.get('/users/:id', userController.authUser, userController.getUser);
 
 // Exporting the router
 module.exports = router;
