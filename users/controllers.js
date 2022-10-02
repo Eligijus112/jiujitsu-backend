@@ -4,15 +4,28 @@ const bcrypt = require("bcrypt");
 // Importing the connection to the database
 const db = require("../db/connection");
 
-// JWT token creation 
+// JWT token creation
 const jwt = require("jsonwebtoken");
+
+// Form parsing
+const formidable = require("formidable");
 
 // Creating the user controller
 const createUser = (req, res, next) => {
   // Defining a new insert statement for the users table
   const create_query = `
-    INSERT INTO users (name, surname, email, password, is_admin, is_active, created_at, updated_at) 
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+    INSERT INTO users (
+        name, 
+        surname, 
+        email, 
+        password, 
+        is_admin, 
+        is_active, 
+        created_at, 
+        updated_at,
+        image_path
+        ) 
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
     `;
 
   // Defining a query to check if the user already exists
@@ -20,281 +33,291 @@ const createUser = (req, res, next) => {
     SELECT * FROM users WHERE email = $1
     `;
 
-  // Extracting the necesary info from the request
-  const name = req.body.name;
-  const surname = req.body.surname;
-  const email = req.body.email;
-  const password = req.body.password;
-  const confirmPassword = req.body.confirmPassword;
+  // Rank creation query
+  const create_rank_query = `
+    INSERT INTO user_ranks (
+        user_id,
+        rank_name,
+        stripe_count,
+        created_at,
+        updated_at
+    ) VALUES ($1, $2, $3, $4, $5) RETURNING *
+    `;
 
-  // By default, the user is not an admin
-  const is_admin = false;
+  const form = formidable({ multiples: true });
+  form.uploadDir = process.env.USER_PROFILE_IMAGE_UPLOAD_PATH;
 
-  // By default, the user is active at time of registration
-  const is_active = true;
+  form.parse(req, (err, fields, files) => {
+    if (err) {
+      return res.status(500).send({
+        message: "Error in creating user",
+        error: err,
+        status_code: 500,
+      });
+    }
 
-  // Getting the current time
-  const created_at = new Date();
+    // Extracting the necesary fields from the request
+    const name = fields.name;
+    const surname = fields.surname;
+    const email = fields.email;
+    const password = fields.password;
+    const confirmPassword = fields.confirmPassword;
+    const rank_name = fields.beltColor;
+    const stripe_count = fields.stripeCount;
+    const image = files.image;
 
-    // First, checking if the passwords match 
+    // Getting the current time
+    const created_at = new Date();
+
+    // By default, the user is not an admin
+    const is_admin = false;
+
+    // By default, the user is active at time of registration
+    const is_active = true;
+
+    // First, checking if the passwords match
     if (password !== confirmPassword) {
-        return res.status(400).send({
-            message: "Passwords do not match",
-            status_code: 400
-        });
+      return res.status(400).send({
+        message: "Passwords do not match",
+        status_code: 400,
+      });
     }
 
     // Hashing the password
     bcrypt.hash(password, 5).then((hash) => {
-        // Checking if user already exists
-        db.query(check_query, [email], (err, result) => {
+      // Checking if user already exists
+      db.query(check_query, [email], (err, result) => {
         if (result.rows.length > 0) {
-            return res.status(409).send({ 
-                message: "User with email already exists",
-                status_code: 409            
-            });
+          return res.status(409).send({
+            message: "User with email already exists",
+            status_code: 409,
+          });
         } else {
-            db.query(
+          // Saving the image to the server
+          const image_path = image.filepath;
+
+          db.query(
             create_query,
             [
-                name,
-                surname,
-                email,
-                hash,
-                is_admin,
-                is_active,
-                created_at,
-                created_at,
+              name,
+              surname,
+              email,
+              hash,
+              is_admin,
+              is_active,
+              created_at,
+              created_at,
+              image_path,
             ],
             (err, result) => {
-                // If there is an error, return it
-                if (err) {
+              // If there is an error, return it
+              if (err) {
                 return res.status(500).send({
-                    message: "Error in creating user",
-                    error: err,
-                    status_code: 500
+                  message: "Error in creating user",
+                  error: err,
+                  status_code: 500,
                 });
-                } else {
-                // If there is no error, return the result
-                return res.status(201).send({
-                    message: "User created successfully",
-                    user_id: result.rows[0].id,
-                    status_code: 201
-                });
-                }
+              } else {
+                // Extracting the created user's id
+                const user_id = result.rows[0].id;
+
+                // Adding the information about the user's rank
+                db.query(
+                  create_rank_query,
+                  [user_id, rank_name, stripe_count, created_at, created_at],
+                  (err, result) => {
+                    // If there is an error, return it
+                    if (err) {
+                      return res.status(500).send({
+                        message: "Error in creating user",
+                        error: err,
+                        status_code: 500,
+                      });
+                    } else {
+                      return res.status(201).send({
+                        message: "User created successfully",
+                        user_id: result.rows[0].id,
+                        status_code: 201,
+                      });
+                    }
+                  }
+                );
+              }
             }
-            );
+          );
         }
-        });
+      });
     });
+  });
 };
 
 // Method to delete a user from database
 const deleteUser = (req, res, next) => {
-    // Extracting the user id from the request
-    const user_id = req.params.id;
+  // Extracting the user id from the request
+  const user_id = req.params.id;
 
-    // Ensuring that the deleter is an admin
-    if (!(req.user_id === user_id || req.is_admin)) {
-        return res.status(401).json({ message: "Unauthorized" });
-    }
+  // Ensuring that the deleter is an admin
+  if (!(req.user_id === user_id || req.is_admin)) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
 
-    // Defining a new delete statement for the users table
-    const delete_query_user = `
+  // Defining a new delete statement for the users table
+  const delete_query_user = `
         DELETE FROM users WHERE id = $1
     `;
-    const delete_query_ranks = `
-        DELETE FROM ranks WHERE user_id = $1
-    `
-
-    // Deleting the user from the database
-    db.query(delete_query, [user_id], (err, result) => {
-        // If there is an error, return it
-        if (err) {
-            return res.status(500).send({
-                message: "Error in deleting user",
-                error: err
-            });
-        } else {
-            // If there is no error, return the result
-            return res.status(200).send({
-                message: "User deleted successfully"
-            });
-        }
-    });
-};
-
-// Method to change the user activity status 
-const toggleActivityUser = (req, res, next) => {
-    // Defining a new update statement for the users table
-    const get_activity_status = `
-        SELECT is_active FROM users WHERE id = $1
-    `
-
-    // Defining a new update statement for the users table
-    const update_query = `
-        UPDATE users SET is_active = $1, updated_at = $2 WHERE id = $3
+  const delete_query_ranks = `
+        DELETE FROM user_ranks WHERE user_id = $1
     `;
 
-    // Extracting the user id from the request
-    const user_id = req.params.id;
-
-    // Getting the current time
-    const updated_at = new Date();
-
-    // Getting the current activity status
-    db.query(get_activity_status, [user_id], (err, result) => {
+  // Deleting the user from the database
+  db.query(delete_query_ranks, [user_id], (err, result) => {
+    // If there is an error, return it
+    if (err) {
+      return res.status(500).send({
+        message: "Error in deleting user",
+        error: err,
+      });
+    } else {
+      db.query(delete_query_user, [user_id], (err, result) => {
         // If there is an error, return it
         if (err) {
-            return res.status(500).send({
-                message: "Error in getting user activity status",
-                error: err
-            });
+          return res.status(500).send({
+            message: "Error in deleting user",
+            error: err,
+          });
         } else {
-            // If there is no error, return the result
-            const is_active = result.rows[0].is_active;
-
-            // Updating the user activity status
-            db.query(update_query, [!is_active, updated_at, user_id], (err, result) => {
-                // If there is an error, return it
-                if (err) {
-                    return res.status(500).send({
-                        message: "Error in updating user activity status",
-                        error: err
-                    });
-                } else {
-                    // If there is no error, return the result
-                    return res.status(200).send({
-                        message: "User activity status updated successfully"
-                    });
-                }
-            });
+          // If there is no error, return the result
+          return res.status(200).send({
+            message: "User deleted successfully",
+            status_code: 200,
+          });
         }
-    });
+      });
+    }
+  });
 };
 
-// User login 
+// User login
 const loginUser = (req, res, next) => {
-    // Defining a new select statement for the users table
-    const login_query = `
+  // Defining a new select statement for the users table
+  const login_query = `
         SELECT * FROM users WHERE email = $1
     `;
 
-    // Extracting the email and password from the request
-    const email = req.body.email;
-    const password = req.body.password;
+  // Extracting the email and password from the request
+  const email = req.body.email;
+  const password = req.body.password;
 
-    // Checking if user exists
-    db.query(login_query, [email], (err, result) => {
-        // If there is an error, return it
-        if (err) {
-            return res.status(500).send({
-                message: "Error in logging in user",
-                error: err,
-                status_code: 500
+  // Checking if user exists
+  db.query(login_query, [email], (err, result) => {
+    // If there is an error, return it
+    if (err) {
+      return res.status(500).send({
+        message: "Error in logging in user",
+        error: err,
+        status_code: 500,
+      });
+    } else {
+      // If there is no error, return the result
+      if (result.rows.length > 0) {
+        // If the user exists, check the password
+        bcrypt.compare(password, result.rows[0].password).then((match) => {
+          if (match) {
+            // Creating the JWT token
+            const token = jwt.sign(
+              {
+                email: result.rows[0].email,
+                user_id: result.rows[0].id,
+                is_admin: result.rows[0].is_admin,
+                is_active: result.rows[0].is_active,
+              },
+              process.env.JWT_KEY,
+              {
+                expiresIn: 3600,
+              }
+            );
+            // If the password matches, return the user info
+            return res.status(200).send({
+              message: "User logged in successfully",
+              user_id: result.rows[0].id,
+              is_admin: result.rows[0].is_admin,
+              is_active: result.rows[0].is_active,
+              status_code: 200,
+              token: token,
+              expires_in: 3600,
             });
-        } else {
-            // If there is no error, return the result
-            if (result.rows.length > 0) {
-                // If the user exists, check the password
-                bcrypt.compare(password, result.rows[0].password).then((match) => {
-                    if (match) {
-                        // Creating the JWT token 
-                        const token = jwt.sign(
-                            {
-                                email: result.rows[0].email,
-                                user_id: result.rows[0].id,
-                                is_admin: result.rows[0].is_admin,
-                                is_active: result.rows[0].is_active
-                            },
-                            process.env.JWT_KEY,
-                            {
-                                expiresIn: 3600
-                            }
-                        );
-                        // If the password matches, return the user info
-                        return res.status(200).send({
-                            message: "User logged in successfully",
-                            user_id: result.rows[0].id,
-                            is_admin: result.rows[0].is_admin,
-                            is_active: result.rows[0].is_active,
-                            status_code: 200,
-                            token: token,
-                            expires_in: 3600
-                        });
-                    } else {
-                        // If the password does not match, return an error
-                        return res.status(401).send({
-                            message: "Incorrect password",
-                            status_code: 401
-                        });
-                    }
-                });
-            } else {
-                // If the user does not exist, return an error
-                return res.status(404).send({
-                    message: "User with email does not exist",
-                    status_code: 404
-                });
-            }
-        }
-    });
+          } else {
+            // If the password does not match, return an error
+            return res.status(401).send({
+              message: "Incorrect password",
+              status_code: 401,
+            });
+          }
+        });
+      } else {
+        // If the user does not exist, return an error
+        return res.status(404).send({
+          message: "User with email does not exist",
+          status_code: 404,
+        });
+      }
+    }
+  });
 };
 
 const authUser = (req, res, next) => {
-    // Checking if the authorization header is present
-    if (!req.headers.authorization) {
-        return res.status(401).send({
-            message: "Authorization header is not present",
-            status_code: 401
-        });
-    } else {
-        // Extracting the token from header
-        const token = req.headers.authorization.split(" ")[1];
+  // Checking if the authorization header is present
+  if (!req.headers.authorization) {
+    return res.status(401).send({
+      message: "Authorization header is not present",
+      status_code: 401,
+    });
+  } else {
+    // Extracting the token from header
+    const token = req.headers.authorization.split(" ")[1];
 
-        // Verifying the token
-        jwt.verify(token, process.env.JWT_KEY, (err, decoded) => {
-            // If there is an error, return it
-            if (err) {
-                return res.status(403).send({
-                        message: "Authentication failed. Please login again",
-                        status_code: 403
-                    })
-            } else {
-                // Checking if the path is not /authenticate
-                if (req.path !== "/users/authenticate") {
-                    // Adding decoded info to the request
-                    req.user_id = decoded.user_id;
-                    req.is_admin = decoded.is_admin;
-                    req.is_active = decoded.is_active;
-                    return next();
-                } else {
-                // If there is no error, return the result
-                return res.status(200).send({
-                        message: "Authentification successful",
-                        status_code: 200,
-                        user_id: decoded.user_id,
-                        is_admin: decoded.is_admin,
-                    })
-                }
-            }
+    // Verifying the token
+    jwt.verify(token, process.env.JWT_KEY, (err, decoded) => {
+      // If there is an error, return it
+      if (err) {
+        return res.status(403).send({
+          message: "Authentication failed. Please login again",
+          status_code: 403,
         });
-    }
+      } else {
+        // Checking if the path is not /authenticate
+        if (req.path !== "/users/authenticate") {
+          // Adding decoded info to the request
+          req.user_id = decoded.user_id;
+          req.is_admin = decoded.is_admin;
+          req.is_active = decoded.is_active;
+          return next();
+        } else {
+          // If there is no error, return the result
+          return res.status(200).send({
+            message: "Authentification successful",
+            status_code: 200,
+            user_id: decoded.user_id,
+            is_admin: decoded.is_admin,
+          });
+        }
+      }
+    });
+  }
 };
 
-
 const getUsers = (req, res, next) => {
-    // Defining the dictionary for belt color ranks
-    const belt_color_ranks = {
-        'white': 0,
-        'blue': 1,
-        'purple': 2,
-        'brown': 3,
-        'black': 4
-    }
+  // Defining the dictionary for belt color ranks
+  const belt_color_ranks = {
+    white: 0,
+    blue: 1,
+    purple: 2,
+    brown: 3,
+    black: 4,
+  };
 
-    // Defining a new select statement for the users table
-    const get_users_query = `
+  // Defining a new select statement for the users table
+  const get_users_query = `
         SELECT 
             users.*, user_ranks.rank_name, user_ranks.stripe_count 
         FROM 
@@ -304,53 +327,54 @@ const getUsers = (req, res, next) => {
         ON 
             users.id = user_ranks.user_id
     `;
-    // Getting all users from the database
-    db.query(get_users_query, (err, result) => {
-        // If there is an error, return it
-        if (err) {
-            return res.status(500).send({
-                message: "Error in getting users",
-                error: err
-            });
+  // Getting all users from the database
+  db.query(get_users_query, (err, result) => {
+    // If there is an error, return it
+    if (err) {
+      return res.status(500).send({
+        message: "Error in getting users",
+        error: err,
+      });
+    } else {
+      // Sorting the users by belt color AND stripe count
+      result.rows.sort((a, b) => {
+        if (belt_color_ranks[a.rank_name] < belt_color_ranks[b.rank_name]) {
+          return 1;
+        } else if (
+          belt_color_ranks[a.rank_name] > belt_color_ranks[b.rank_name]
+        ) {
+          return -1;
         } else {
-            // Sorting the users by belt color AND stripe count
-            result.rows
-            .sort((a, b) => {
-                if (belt_color_ranks[a.rank_name] < belt_color_ranks[b.rank_name]) {
-                    return 1;
-                } else if (belt_color_ranks[a.rank_name] > belt_color_ranks[b.rank_name]) {
-                    return -1;
-                } else {
-                    if (a.stripe_count < b.stripe_count) {
-                        return 1;
-                    } else if (a.stripe_count > b.stripe_count) {
-                        return -1;
-                    } else {
-                        return 0;
-                    }
-                }
-            })
-            // If there is no error, return the result
-            return res.status(200).send({
-                message: "Users retrieved successfully",
-                users: result.rows
-            });
+          if (a.stripe_count < b.stripe_count) {
+            return 1;
+          } else if (a.stripe_count > b.stripe_count) {
+            return -1;
+          } else {
+            return 0;
+          }
         }
-    });    
+      });
+      // If there is no error, return the result
+      return res.status(200).send({
+        message: "Users retrieved successfully",
+        users: result.rows,
+      });
+    }
+  });
 };
 
-// Getting the user 
+// Getting the user
 const getUser = (req, res, next) => {
-    // Extracting the user_id from the params 
-    const user_id = req.params.id;
+  // Extracting the user_id from the params
+  const user_id = req.params.id;
 
-    // Checking if the user_id is the same as in the token 
-    if (!(req.user_id === user_id || req.is_admin)) {
-        return res.status(401).json({ message: "Unauthorized" });
-    }
+  // Checking if the user_id is the same as in the token
+  if (!(req.user_id === user_id || req.is_admin)) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
 
-    // Defining a new select statement for the users table
-    const get_user_query = `
+  // Defining a new select statement for the users table
+  const get_user_query = `
         SELECT
             users.*, user_ranks.rank_name, user_ranks.stripe_count
         FROM
@@ -363,40 +387,40 @@ const getUser = (req, res, next) => {
             users.id = $1
     `;
 
-    // Getting the user from the database
-    db.query(get_user_query, [user_id], (err, result) => {
-        // If there is an error, return it
-        if (err) {
-            return res.status(500).send({
-                message: "Error in getting user",
-                error: err
-            });
-        } else {
-            // If there is no error, return the result
-            if (result.rows.length > 0){
-                return res.status(200).send({
-                    message: "User retrieved successfully",
-                    user_info: {
-                        id: result.rows[0].id,
-                        first_name: result.rows[0].first_name,
-                        last_name: result.rows[0].last_name,
-                        email: result.rows[0].email,
-                        rank_name: result.rows[0].rank_name,
-                        stripe_count: result.rows[0].stripe_count,
-                    }
-            })
-        }
-        }
-    })
-}
+  // Getting the user from the database
+  db.query(get_user_query, [user_id], (err, result) => {
+    // If there is an error, return it
+    if (err) {
+      return res.status(500).send({
+        message: "Error in getting user",
+        error: err,
+      });
+    } else {
+      // If there is no error, return the result
+      if (result.rows.length > 0) {
+        return res.status(200).send({
+          message: "User retrieved successfully",
+          user_info: {
+            id: result.rows[0].id,
+            name: result.rows[0].name,
+            surname: result.rows[0].surname,
+            email: result.rows[0].email,
+            rank_name: result.rows[0].rank_name,
+            stripe_count: result.rows[0].stripe_count,
+            image_path: result.rows[0].image_path,
+          },
+        });
+      }
+    }
+  });
+};
 
 // Exporting the user controller
 module.exports = {
   createUser,
   deleteUser,
-  toggleActivityUser,
   loginUser,
-  authUser, 
+  authUser,
   getUsers,
-  getUser
+  getUser,
 };

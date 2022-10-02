@@ -1,3 +1,6 @@
+// Importing path 
+const path = require('path');
+
 // Importing the express module
 const express = require('express');
 
@@ -16,9 +19,12 @@ require('dotenv').config({path: './.env'});
 // Initiating the app 
 const app = express();
 
+// Defining the image dir 
+app.use(express.static(path.join(__dirname, process.env.USER_PROFILE_IMAGE_UPLOAD_PATH)));
+
 // Setting the body parsing
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.urlencoded({ extended: true }));
 
 // Setting up the CORS
 app.use((req, res, next) => {

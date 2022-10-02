@@ -7,3 +7,6 @@ nodemon.json
 
 # Vs code dir 
 .vscode/
+
+# Ignoring the uploaded files
+uploads/

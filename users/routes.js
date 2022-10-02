@@ -11,10 +11,7 @@ const userController = require('./controllers');
 router.post('/users/create', userController.createUser);
 
 // User deletion 
-router.delete('/users/delete/:id', userController.authUser, userController.deleteUser);
-
-// Activity toggling 
-router.put('/users/toggle_activity/:id', userController.toggleActivityUser);
+router.delete('/users/:id', userController.authUser, userController.deleteUser);
 
 // User login
 router.post('/users/login', userController.loginUser);
