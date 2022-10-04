@@ -20,7 +20,7 @@ require('dotenv').config({path: './.env'});
 const app = express();
 
 // Defining the image dir 
-app.use(express.static(path.join(__dirname, process.env.USER_PROFILE_IMAGE_UPLOAD_PATH)));
+app.use('/uploads/users/profile', express.static(path.join(process.env.USER_PROFILE_IMAGE_UPLOAD_PATH)));
 
 // Setting the body parsing
 app.use(bodyParser.json());

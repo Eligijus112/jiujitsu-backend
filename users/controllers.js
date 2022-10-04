@@ -10,6 +10,9 @@ const jwt = require("jsonwebtoken");
 // Form parsing
 const formidable = require("formidable");
 
+// File system
+const fs = require("fs");
+
 // Creating the user controller
 const createUser = (req, res, next) => {
   // Defining a new insert statement for the users table
@@ -93,8 +96,23 @@ const createUser = (req, res, next) => {
             status_code: 409,
           });
         } else {
-          // Saving the image to the server
-          const image_path = image.filepath;
+          // Extracting the original file name 
+          const origFilename = image.originalFilename; 
+
+          // Extracting the file extension
+          const fileExtension = origFilename.split('.').pop();
+
+          // Extracting the new file name 
+          const newFilename = image.newFilename;
+
+          // Adding the extension to the created file 
+          const newFile = newFilename + '.' + fileExtension;
+
+          // Creating the full path to the image
+          const imagePath = process.env.USER_PROFILE_IMAGE_UPLOAD_PATH + '/' + newFile;
+
+          // Moving the file to the new location
+          fs.rename(image.filepath, imagePath, (err) => {});
 
           db.query(
             create_query,
@@ -107,7 +125,7 @@ const createUser = (req, res, next) => {
               is_active,
               created_at,
               created_at,
-              image_path,
+              imagePath,
             ],
             (err, result) => {
               // If there is an error, return it
