@@ -65,6 +65,7 @@ const createUser = (req, res, next) => {
     const email = fields.email;
     const password = fields.password;
     const confirmPassword = fields.confirmPassword;
+    const adminPassword = fields.adminPassword;
     const rank_name = fields.beltColor;
     const stripe_count = fields.stripeCount;
     const image = files.image;
@@ -77,6 +78,14 @@ const createUser = (req, res, next) => {
 
     // By default, the user is active at time of registration
     const is_active = true;
+
+    // Checking if the adming password matches with the one in memory 
+    if (adminPassword !== process.env.ADMIN_PASSWORD) {
+      return res.status(401).send({
+        message: "Admin password is incorrect",
+        status_code: 401,
+      });
+    }
 
     // First, checking if the passwords match
     if (password !== confirmPassword) {
@@ -96,20 +105,21 @@ const createUser = (req, res, next) => {
             status_code: 409,
           });
         } else {
-          // Extracting the original file name 
-          const origFilename = image.originalFilename; 
+          // Extracting the original file name
+          const origFilename = image.originalFilename;
 
           // Extracting the file extension
-          const fileExtension = origFilename.split('.').pop();
+          const fileExtension = origFilename.split(".").pop();
 
-          // Extracting the new file name 
+          // Extracting the new file name
           const newFilename = image.newFilename;
 
-          // Adding the extension to the created file 
-          const newFile = newFilename + '.' + fileExtension;
+          // Adding the extension to the created file
+          const newFile = newFilename + "." + fileExtension;
 
           // Creating the full path to the image
-          const imagePath = process.env.USER_PROFILE_IMAGE_UPLOAD_PATH + '/' + newFile;
+          const imagePath =
+            process.env.USER_PROFILE_IMAGE_UPLOAD_PATH + "/" + newFile;
 
           // Moving the file to the new location
           fs.rename(image.filepath, imagePath, (err) => {});
@@ -384,7 +394,7 @@ const getUsers = (req, res, next) => {
 // Getting the user
 const getUser = (req, res, next) => {
   // Extracting the user_id from the params
-  const user_id = req.params.id;
+  const user_id = parseInt(req.params.id);
 
   // Checking if the user_id is the same as in the token
   if (!(req.user_id === user_id || req.is_admin)) {
@@ -433,8 +443,96 @@ const getUser = (req, res, next) => {
   });
 };
 
+// Creating the user controller
+const updateUser = (req, res, next) => {
+  // Defining the update query
+  const update_user_query = `
+        UPDATE
+            users
+        SET
+            name = $1,
+            surname = $2,
+            email = $3,
+            updated_at = NOW()
+        WHERE
+            id = $4
+    `;
+
+  // Rank creation query
+  const update_rank_query = `
+    UPDATE 
+        user_ranks
+    SET
+        rank_name = $1,
+        stripe_count = $2,
+        updated_at = NOW()
+    WHERE
+        user_id = $3
+    `;
+
+  const form = formidable({ multiples: true });
+  form.uploadDir = process.env.USER_PROFILE_IMAGE_UPLOAD_PATH;
+
+  form.parse(req, (err, fields, files) => {
+    if (err) {
+      return res.status(500).send({
+        message: "Error in updating user",
+        error: err,
+        status_code: 500,
+      });
+    }
+
+    // Extracting the necesary fields from the request
+    const name = fields.name;
+    const surname = fields.surname;
+    const email = fields.email;
+    const rank_name = fields.rank_name;
+    const stripe_count = fields.stripe_count;
+    const image = files.image;
+
+    if (image) {
+      // Extracting the old image path 
+      const old_image_path = fields.image_path;
+
+      // Moving the file to the new location
+      fs.rename(image.filepath, old_image_path, (err) => {});
+    }
+
+    // Updating the user in the database
+    db.query(
+      update_user_query,
+      [name, surname, email, req.user_id],
+      (err, result) => {
+        if (err !== null || err !== undefined) {
+          // Updating the ranks
+          db.query(
+            update_rank_query,
+            [rank_name, stripe_count, req.user_id],
+            (err, result) => {
+              if (err !== null || err !== undefined) {
+                return res.status(200).send({
+                  message: "User updated successfully",
+                  status_code: 200,
+                });
+              }
+            }
+          );
+        }
+        else {
+          return res.status(500).send({
+            message: "Error in updating user",
+            error: err,
+            status_code: 500,
+          });
+        }
+      }
+    );
+  });
+};
+
 // Exporting the user controller
 module.exports = {
+  updateUser,
   createUser,
   deleteUser,
   loginUser,

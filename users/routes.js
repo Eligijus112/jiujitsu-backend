@@ -25,5 +25,8 @@ router.get('/users', userController.authUser, userController.getUsers);
 // Getting one user info 
 router.get('/users/:id', userController.authUser, userController.getUser);
 
+// Updating the user info
+router.put('/users/:id', userController.authUser, userController.updateUser);
+
 // Exporting the router
 module.exports = router;
