@@ -13,6 +13,9 @@ const usersRoutes = require('./users/routes');
 // Importing the ranks routes
 const ranksRoutes = require('./ranks/routes');
 
+// Importing the calendar routes
+const calendarRoutes = require('./calendar/routes');
+
 // Loading the .env constants
 require('dotenv').config({path: './.env'});
 
@@ -43,6 +46,7 @@ app.use((req, res, next) => {
 // Setting up the routes
 app.use('/api', usersRoutes);
 app.use('/api', ranksRoutes);
+app.use('/api', calendarRoutes);
 
 // Exporting the app
 module.exports = app;
