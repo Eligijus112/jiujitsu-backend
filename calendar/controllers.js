@@ -156,8 +156,67 @@ const getCalendar = (req, res) => {
   });
 }
 
+const getMorningGoers = (req, res) => {
+  // Extracting the start and end dates from the request 
+  const start_date = req.query.start;
+  const end_date = req.query.end;
+
+  // Query to get the activity of users 
+  query = `select 
+    *
+  from public.calendar 
+  where date >= '${start_date}' and date <= '${end_date}' and going_morning`
+
+  // Querying the database
+  db.query(query, (error, results) => {
+    if (error) {
+      return res.status(500).send({
+        message: "Error in getting user activity",
+        error: error,
+      });
+    }
+
+    return res.status(200).send({
+      message: "Successfully gotten the morning goers",
+      data: results.rows,
+      status_code: 200,
+    });
+  });
+}
+
+const getEveningGoers = (req, res) => {
+  // Extracting the start and end dates from the request 
+  const start_date = req.query.start;
+  const end_date = req.query.end;
+
+  // Query to get the activity of users 
+  query = `select 
+    *
+  from public.calendar 
+  where date >= '${start_date}' and date <= '${end_date}' and going_evening`
+
+  // Querying the database
+  db.query(query, (error, results) => {
+    if (error) {
+      return res.status(500).send({
+        message: "Error in getting user activity",
+        error: error,
+      });
+    }
+
+    return res.status(200).send({
+      message: "Successfully gotten the evening goers",
+      data: results.rows,
+      status_code: 200,
+    });
+  });
+}
+
+
 // Exporting the addEntry function
 module.exports = {
   addEntry,
-  getCalendar
+  getCalendar,
+  getMorningGoers,
+  getEveningGoers
 };

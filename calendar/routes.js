@@ -16,5 +16,11 @@ router.post('/calendar/addEntry', userController.authUser, calendarController.ad
 // Route to get the user activity
 router.get('/calendar', userController.authUser, calendarController.getCalendar);
 
+// Route to get the morning goers
+router.get('/calendar/morning', userController.authUser, calendarController.getMorningGoers);
+
+// Route to get evening goers 
+router.get('/calendar/evening', userController.authUser, calendarController.getEveningGoers);
+
 // Exporting the router
 module.exports = router;

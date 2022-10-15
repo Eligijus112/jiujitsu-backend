@@ -16,6 +16,9 @@ const ranksRoutes = require('./ranks/routes');
 // Importing the calendar routes
 const calendarRoutes = require('./calendar/routes');
 
+// Importing cors 
+const cors = require('cors');
+
 // Loading the .env constants
 require('dotenv').config({path: './.env'});
 
