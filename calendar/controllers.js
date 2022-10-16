@@ -163,9 +163,13 @@ const getMorningGoers = (req, res) => {
 
   // Query to get the activity of users 
   query = `select 
-    *
+    calendar.*, users.*, user_ranks.*
   from public.calendar 
-  where date >= '${start_date}' and date <= '${end_date}' and going_morning`
+  left join 
+    users on users.id = calendar.user_id
+  left join 
+    user_ranks on user_ranks.user_id = users.id
+  where calendar.date >= '${start_date}' and calendar.date <= '${end_date}' and calendar.going_morning`
 
   // Querying the database
   db.query(query, (error, results) => {
@@ -191,9 +195,13 @@ const getEveningGoers = (req, res) => {
 
   // Query to get the activity of users 
   query = `select 
-    *
+    calendar.*, users.*, user_ranks.*
   from public.calendar 
-  where date >= '${start_date}' and date <= '${end_date}' and going_evening`
+  left join 
+    users on users.id = calendar.user_id
+  left join 
+    user_ranks on user_ranks.user_id = users.id
+  where calendar.date >= '${start_date}' and calendar.date <= '${end_date}' and calendar.going_evening`
 
   // Querying the database
   db.query(query, (error, results) => {
@@ -212,11 +220,75 @@ const getEveningGoers = (req, res) => {
   });
 }
 
+const toggleAttendance = (req, res) => {
+  // Extracting the user id from the request
+  const user_id = req.body.user_id;
+  // Extracting the date and part of day from the request
+  const date = req.body.date;
+  const part_of_day = req.body.part_of_day;
+
+  // Query to search for already registered dates
+  const search_query = searchQuery(user_id, date, part_of_day);
+
+  // Querying the db 
+  db.query(search_query, (error, results) => {
+    if (error) {
+      return res.status(500).send({
+        message: "Error in searching for dates",
+        error: error,
+      });
+    }
+
+    // Checking if the user is already registered for that part of day
+    if (results.rows.length > 0) {
+      // If the user is already registered, unregister him
+      db.query(
+        `update calendar 
+        set going_${part_of_day} = false, updated_at = NOW() 
+        where user_id = ${user_id} and date = '${date}'`,
+        (error, results) => {
+          if (error) {
+            return res.status(500).send({
+              message: "Error in removing dates",
+              error: error,
+            });
+          }
+
+          return res.status(201).send({
+            message: "User unregistered for " + part_of_day,
+            status_code: 201,
+          });
+        }
+      );
+    } else {
+      // If the user is not registered, register him
+      db.query(
+        `update calendar 
+        set going_${part_of_day} = true, updated_at = NOW() 
+        where user_id = ${user_id} and date = '${date}'`,
+        (error, results) => {
+          if (error) {
+            return res.status(500).send({
+              message: "Error in adding dates",
+              error: error,
+            });
+          }
+
+          return res.status(201).send({
+            message: "User registered for " + part_of_day,
+            status_code: 201,
+          });
+        }
+      );
+    }
+  });
+};
 
 // Exporting the addEntry function
 module.exports = {
   addEntry,
   getCalendar,
   getMorningGoers,
-  getEveningGoers
+  getEveningGoers,
+  toggleAttendance
 };

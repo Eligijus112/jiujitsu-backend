@@ -22,5 +22,8 @@ router.get('/calendar/morning', userController.authUser, calendarController.getM
 // Route to get evening goers 
 router.get('/calendar/evening', userController.authUser, calendarController.getEveningGoers);
 
+// Toggling of going to the sessions 
+router.put('/calendar/toggleAttendance', userController.authUser, calendarController.toggleAttendance);
+
 // Exporting the router
 module.exports = router;
